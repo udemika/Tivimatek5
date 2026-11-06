@@ -91,7 +91,10 @@ export function DeviceRecordingProvider({ children }: { children: React.ReactNod
       const cachePath = cacheDir + fileName;
       cacheFilePathRef.current = cachePath;
 
-      const pipeUrl = `${API_BASE}/pipe?url=${encodeURIComponent(streamUrl)}`;
+      const hasCustomServer = Boolean(process.env.EXPO_PUBLIC_DOMAIN);
+      const pipeUrl = (Platform.OS !== "web" && !hasCustomServer)
+        ? streamUrl
+        : `${API_BASE}/pipe?url=${encodeURIComponent(streamUrl)}`;
 
       const dl = FileSystem.createDownloadResumable(
         pipeUrl,

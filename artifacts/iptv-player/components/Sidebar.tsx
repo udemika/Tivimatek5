@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Platform,
   StyleSheet,
@@ -43,6 +43,7 @@ export function Sidebar({ onSettings, onSwitchPlaylist }: SidebarProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { currentSection, setCurrentSection, activePlaylist, playlists, recordings } = useIPTV();
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
@@ -88,11 +89,18 @@ export function Sidebar({ onSettings, onSwitchPlaylist }: SidebarProps) {
 
       {/* Active playlist badge */}
       <TouchableOpacity
+        focusable={true}
+        onFocus={() => setFocusedKey("playlist")}
+        onBlur={() => setFocusedKey((k) => (k === "playlist" ? null : k))}
         onPress={() => {
           Haptics.selectionAsync();
           onSwitchPlaylist();
         }}
-        style={[styles.playlistBadge, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+        style={[
+          styles.playlistBadge,
+          { backgroundColor: colors.secondary, borderColor: colors.border },
+          focusedKey === "playlist" && { borderColor: colors.primary, borderWidth: 2 },
+        ]}
         activeOpacity={0.75}
       >
         <View style={[styles.playlistDot, { backgroundColor: activePlaylist ? "#4ade80" : colors.mutedForeground }]} />
@@ -120,9 +128,13 @@ export function Sidebar({ onSettings, onSwitchPlaylist }: SidebarProps) {
           const isRecordings = item.section === "Recordings";
           const badge = isRecordings ? recordingsBadge : 0;
 
+          const isFocused = focusedKey === item.section;
           return (
             <TouchableOpacity
               key={item.section}
+              focusable={true}
+              onFocus={() => setFocusedKey(item.section)}
+              onBlur={() => setFocusedKey((k) => (k === item.section ? null : k))}
               onPress={() => {
                 Haptics.selectionAsync();
                 setCurrentSection(item.section);
@@ -131,6 +143,7 @@ export function Sidebar({ onSettings, onSwitchPlaylist }: SidebarProps) {
               style={[
                 styles.itemWrap,
                 active && { backgroundColor: `${colors.primary}22` },
+                isFocused && { borderColor: colors.primary, borderWidth: 2, backgroundColor: `${colors.primary}30` },
               ]}
             >
               {active && (
@@ -168,11 +181,17 @@ export function Sidebar({ onSettings, onSwitchPlaylist }: SidebarProps) {
       {/* Footer */}
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
         <TouchableOpacity
+          focusable={true}
+          onFocus={() => setFocusedKey("settings")}
+          onBlur={() => setFocusedKey((k) => (k === "settings" ? null : k))}
           onPress={() => {
             Haptics.selectionAsync();
             onSettings();
           }}
-          style={styles.itemWrap}
+          style={[
+            styles.itemWrap,
+            focusedKey === "settings" && { borderColor: colors.primary, borderWidth: 2, backgroundColor: `${colors.primary}30` },
+          ]}
           activeOpacity={0.7}
         >
           <View style={styles.iconWrap}>

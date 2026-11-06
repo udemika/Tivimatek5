@@ -54,6 +54,7 @@ export function useServerRecordings(recordings: Recording[]) {
   const apiBase = getApiBase();
 
   async function startRecording(r: Recording): Promise<void> {
+    if (Platform.OS !== "web" && apiBase.startsWith("/")) return;
     if (attemptedRef.current.has(r.id)) return;
     attemptedRef.current.add(r.id);
     const filename = buildFilename(r);
@@ -98,6 +99,7 @@ export function useServerRecordings(recordings: Recording[]) {
   }
 
   async function pollStatus(id: string): Promise<void> {
+    if (Platform.OS !== "web" && apiBase.startsWith("/")) return;
     try {
       const resp = await fetch(`${apiBase}/recordings/status/${id}`);
       if (!resp.ok) return;

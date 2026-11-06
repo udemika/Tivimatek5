@@ -8,10 +8,10 @@ const replitExpoDomain = process.env.REPLIT_EXPO_DEV_DOMAIN
 
 module.exports = {
   expo: {
-    name: "IPTV Player",
+    name: "TiviMatek5 TV",
     slug: "iptv-player",
-    version: "1.0.0",
-    orientation: "portrait",
+    version: "1.1.0",
+    orientation: "landscape",
     icon: "./assets/images/icon.png",
     scheme: "iptv-player",
     userInterfaceStyle: "dark",
@@ -29,6 +29,8 @@ module.exports = {
     },
     android: {
       package: "com.iptv.player",
+      usesCleartextTraffic: true,
+      banner: "./assets/images/icon.png",
       adaptiveIcon: {
         foregroundImage: "./assets/images/icon.png",
         backgroundColor: "#111111",
@@ -48,6 +50,7 @@ module.exports = {
       "expo-web-browser",
       "expo-av",
       "expo-video",
+      "./plugins/withGoogleTV",
     ],
     extra: {
       router: {

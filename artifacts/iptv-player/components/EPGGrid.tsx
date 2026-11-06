@@ -162,6 +162,8 @@ export function EPGGrid({ onPlayChannel, onCatchUp, onGoToRecordings }: EPGGridP
     selectedGroup,
     selectedChannel,
     setSelectedChannel,
+    favorites,
+    hiddenChannels,
     recordings,
     stalkerEpgData,
     stalkerEpgLoading,
@@ -205,10 +207,13 @@ export function EPGGrid({ onPlayChannel, onCatchUp, onGoToRecordings }: EPGGridP
 
   const rawChannels = useMemo(() => {
     if (!activePlaylist) return [];
-    const all = activePlaylist.channels;
-    const filtered = selectedGroup ? all.filter((c) => c.group === selectedGroup) : all.slice(0, 50);
-    return filtered.slice(0, 60);
-  }, [activePlaylist, selectedGroup]);
+    const all = activePlaylist.channels.filter((c) => !hiddenChannels.includes(c.id));
+    if (!selectedGroup) return all.slice(0, 50);
+    if (selectedGroup === "__favorites__" || selectedGroup === "Favorites") {
+      return all.filter((c) => favorites.includes(c.id)).slice(0, 60);
+    }
+    return all.filter((c) => c.group === selectedGroup).slice(0, 60);
+  }, [activePlaylist, selectedGroup, favorites, hiddenChannels]);
 
   // Merge real Stalker EPG data into channels; fall back to mock for channels without real EPG
   const channels = useMemo(() => {

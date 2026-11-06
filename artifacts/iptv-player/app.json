@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "IPTV Player",
+    "name": "TiviMatek5 TV",
     "slug": "iptv-player",
-    "version": "1.0.0",
-    "orientation": "portrait",
+    "version": "1.1.0",
+    "orientation": "landscape",
     "icon": "./assets/images/icon.png",
     "scheme": "iptv-player",
     "userInterfaceStyle": "dark",
@@ -18,10 +18,12 @@
     },
     "android": {
       "package": "com.iptv.player",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#111111"
-      }
+      },
+      "banner": "./assets/images/icon.png"
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -35,7 +37,9 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-av"
+      "expo-av",
+      "expo-video",
+      "./plugins/withGoogleTV"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -118,6 +118,7 @@ export function ChannelList({
   const [containerWidth, setContainerWidth] = useState(0);
   const [filterQuery, setFilterQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("default");
+  const [focusedId, setFocusedId] = useState<string | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem(LAYOUT_STORAGE_KEY)
@@ -170,7 +171,9 @@ export function ChannelList({
     if (currentSection === "TV") {
       let list = channels.filter((c) => !hiddenChannels.includes(c.id));
       if (!selectedGroup) list = list.slice(0, 100);
-      else {
+      else if (selectedGroup === "__favorites__" || selectedGroup === "Favorites") {
+        list = list.filter((c) => favorites.includes(c.id));
+      } else {
         list = list.filter((c) => c.group === selectedGroup);
         if (favoritesOnlyGroups.includes(selectedGroup) && !manageFavoritesMode) {
           list = list.filter((c) => favorites.includes(c.id));
@@ -282,8 +285,17 @@ export function ChannelList({
       );
     }
 
+    const isFocused = focusedId === channel.id;
     return (
       <TouchableOpacity
+        focusable={true}
+        onFocus={() => {
+          setFocusedId(channel.id);
+          setSelectedChannel(channel);
+        }}
+        onBlur={() => {
+          setFocusedId((prev) => (prev === channel.id ? null : prev));
+        }}
         onPress={() => {
           Haptics.selectionAsync();
           setSelectedChannel(channel);
@@ -294,6 +306,12 @@ export function ChannelList({
         style={[
           styles.item,
           active && { backgroundColor: colors.highlight },
+          isFocused && {
+            backgroundColor: `${colors.primary}28`,
+            borderColor: colors.primary,
+            borderWidth: 2,
+            borderRadius: 8,
+          },
           isBlocked && { opacity: 0.4 },
           { borderBottomColor: colors.border },
         ]}

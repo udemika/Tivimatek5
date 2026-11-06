@@ -198,6 +198,53 @@ interface IPTVContextValue {
 
 const IPTVContext = createContext<IPTVContextValue | null>(null);
 
+const CHUNK_SIZE = 350_000; // 350 KB per AsyncStorage key to avoid Android 2MB CursorWindow crash
+const PLAYLISTS_META_KEY = "playlists_chunk_meta_v2";
+
+async function savePlaylistsChunked(playlists: Playlist[]): Promise<void> {
+  try {
+    const raw = JSON.stringify(playlists);
+    const totalChunks = Math.ceil(raw.length / CHUNK_SIZE);
+    const pairs: [string, string][] = [];
+    for (let i = 0; i < totalChunks; i++) {
+      pairs.push([`playlists_chunk_${i}`, raw.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)]);
+    }
+    pairs.push([PLAYLISTS_META_KEY, JSON.stringify({ totalChunks, updatedAt: Date.now() })]);
+    await AsyncStorage.multiSet(pairs);
+  } catch {}
+}
+
+async function loadPlaylistsChunked(): Promise<Playlist[] | null> {
+  try {
+    const metaRaw = await AsyncStorage.getItem(PLAYLISTS_META_KEY);
+    if (metaRaw) {
+      const { totalChunks } = JSON.parse(metaRaw) as { totalChunks: number };
+      if (totalChunks > 0) {
+        const keys = Array.from({ length: totalChunks }, (_, i) => `playlists_chunk_${i}`);
+        const entries = await AsyncStorage.multiGet(keys);
+        const joined = entries.map((entry: readonly [string, string | null]) => entry[1] ?? "").join("");
+        if (joined) return JSON.parse(joined) as Playlist[];
+      }
+      return [];
+    }
+    // Fallback to legacy single key
+    const legacy = await AsyncStorage.getItem("playlists");
+    if (legacy) return JSON.parse(legacy) as Playlist[];
+  } catch {}
+  return null;
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 15_000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+
 function parseM3U(text: string): { channels: Channel[]; movies: VODItem[]; shows: VODItem[] } {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   const channels: Channel[] = [];
@@ -313,10 +360,7 @@ async function stalkerCall(
     // On native (Android/iOS) there is no CORS restriction — call the portal directly
     // with the proper MAG STB headers, exactly as the Express proxy does.
     const url = buildStalkerDirectUrl(portal, params);
-    const resp = await fetch(url, {
-      headers: stalkerMagHeaders(mac, token),
-      signal: AbortSignal.timeout(15_000),
-    });
+    const resp = await fetchWithTimeout(url, { headers: stalkerMagHeaders(mac, token) }, 15_000);
     if (!resp.ok) throw new Error(`Stalker portal error: ${resp.status}`);
     const text = await resp.text();
     if (!text.trim()) return { js: null };
@@ -500,11 +544,10 @@ export function IPTVProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem("playlists");
-        if (stored) {
-          const parsed = JSON.parse(stored) as Playlist[];
+        const parsed = await loadPlaylistsChunked();
+        if (parsed && parsed.length > 0) {
           setPlaylists(parsed);
-          if (parsed.length > 0) setActivePlaylistState(parsed[0]);
+          setActivePlaylistState(parsed[0]);
         }
         const favs = await AsyncStorage.getItem("favorites");
         if (favs) setFavorites(JSON.parse(favs));
@@ -732,7 +775,7 @@ export function IPTVProvider({ children }: { children: React.ReactNode }) {
       if (!token) throw new Error("Could not authenticate with Stalker portal");
       setPlaylists((prev) => {
         const next = prev.map((p) => (p.id === playlist.id ? { ...p, stalkerToken: token } : p));
-        AsyncStorage.setItem("playlists", JSON.stringify(next));
+        savePlaylistsChunked(next);
         return next;
       });
     }
@@ -942,7 +985,7 @@ export function IPTVProvider({ children }: { children: React.ReactNode }) {
 
         setPlaylists((prev) => {
           const next = [...prev, playlist];
-          AsyncStorage.setItem("playlists", JSON.stringify(next));
+          savePlaylistsChunked(next);
           return next;
         });
         setActivePlaylistState(playlist);
@@ -959,7 +1002,7 @@ export function IPTVProvider({ children }: { children: React.ReactNode }) {
   const removePlaylist = useCallback((id: string) => {
     setPlaylists((prev) => {
       const next = prev.filter((p) => p.id !== id);
-      AsyncStorage.setItem("playlists", JSON.stringify(next));
+      savePlaylistsChunked(next);
       if (activePlaylist?.id === id) {
         setActivePlaylistState(next[0] ?? null);
       }

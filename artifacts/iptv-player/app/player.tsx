@@ -23,6 +23,7 @@ import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { useTVRemote } from "@/hooks/useTVRemote";
 import { useIPTV } from "@/context/IPTVContext";
 import { usePiP } from "@/context/PiPContext";
 import { formatBytes, formatElapsed } from "@/hooks/useDeviceRecording";
@@ -732,106 +733,94 @@ export default function PlayerScreen() {
     [currentChannelIdx, channelList, switchChannel]
   );
 
-  // Web keyboard handler — works in browser on Mi Box / Android TV
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const onKey = (e: KeyboardEvent) => {
-      switch (e.code) {
-        case "Space":
-        case "MediaPlayPause":
-          e.preventDefault();
-          togglePlay();
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          if (!isCatchUp) navigateChannel("prev");
-          break;
-        case "ArrowDown":
-          e.preventDefault();
-          if (!isCatchUp) navigateChannel("next");
-          break;
-        case "ArrowLeft":
-          e.preventDefault();
-          if (isCatchUp) seekBackward();
-          else {
-            setShowControls(true);
-            hideControls();
-          }
-          break;
-        case "ArrowRight":
-          e.preventDefault();
-          if (isCatchUp) seekForward();
-          else {
-            setShowControls(true);
-            hideControls();
-          }
-          break;
-        case "Escape":
-        case "BrowserBack":
-          router.back();
-          break;
-        case "Enter":
-        case "NumpadEnter":
-          setShowControls((v) => !v);
-          break;
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [togglePlay, navigateChannel, seekBackward, seekForward, isCatchUp, router, hideControls]);
-
-  // Android hardware back button (Mi Box remote Back key)
+  // Android hardware back button (Google TV / Mi Box remote Back key)
   useEffect(() => {
     if (Platform.OS === "web") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (showEpg) {
+        setShowEpg(false);
+        return true;
+      }
+      if (showMultiview) {
+        setShowMultiview(false);
+        return true;
+      }
+      if (showControls || showToolbar) {
+        setShowControls(false);
+        setShowToolbar(false);
+        return true;
+      }
       router.back();
       return true;
     });
     return () => sub.remove();
-  }, [router]);
+  }, [router, showEpg, showMultiview, showControls, showToolbar]);
 
-  // Native TV remote events — Android TV (Mi Box) + Apple TV
-  useEffect(() => {
-    if (Platform.OS === "web") return;
-    let tvHandler: any = null;
-    try {
-      const RN = require("react-native");
-      if (RN.TVEventHandler) {
-        tvHandler = new RN.TVEventHandler();
-        tvHandler.enable(null, (_cmp: any, evt: any) => {
-          if (!evt) return;
-          switch (evt.eventType) {
-            case "playPause":
-              togglePlay();
-              break;
-            case "up":
-              if (!isCatchUp) navigateChannel("prev");
-              break;
-            case "down":
-              if (!isCatchUp) navigateChannel("next");
-              break;
-            case "left":
-              if (isCatchUp) seekBackward();
-              break;
-            case "right":
-              if (isCatchUp) seekForward();
-              break;
-            case "select":
-              setShowControls((v) => !v);
-              break;
-          }
-        });
+  // Universal Google TV / Android TV D-Pad Remote & Web Keyboard handler
+  useTVRemote({
+    enabled: !showMultiview,
+    onUp: () => {
+      if (showControls || showToolbar) {
+        hideControls();
+        return;
       }
-    } catch {
-      /* TVEventHandler not available on this platform */
-    }
-    return () => {
-      try {
-        tvHandler?.disable();
-      } catch {}
-    };
-  }, [togglePlay, navigateChannel, seekBackward, seekForward, isCatchUp]);
-
+      if (!isCatchUp) navigateChannel("prev");
+    },
+    onDown: () => {
+      if (showControls || showToolbar) {
+        hideControls();
+        return;
+      }
+      if (!isCatchUp) navigateChannel("next");
+    },
+    onChannelUp: () => {
+      if (!isCatchUp) navigateChannel("prev");
+    },
+    onChannelDown: () => {
+      if (!isCatchUp) navigateChannel("next");
+    },
+    onLeft: () => {
+      if (isCatchUp) seekBackward();
+      else {
+        setShowControls(true);
+        hideControls();
+      }
+    },
+    onRight: () => {
+      if (isCatchUp) seekForward();
+      else {
+        setShowControls(true);
+        hideControls();
+      }
+    },
+    onSelect: () => {
+      if (!showControls) {
+        setShowControls(true);
+        setShowToolbar(true);
+        hideControls();
+      } else {
+        togglePlay();
+        hideControls();
+      }
+    },
+    onPlayPause: () => {
+      togglePlay();
+      setShowControls(true);
+      hideControls();
+    },
+    onMenu: () => {
+      setShowEpg((v) => !v);
+    },
+    onBack: () => {
+      if (showEpg) setShowEpg(false);
+      else if (showControls || showToolbar) {
+        setShowControls(false);
+        setShowToolbar(false);
+      } else {
+        router.back();
+      }
+    },
+  });
   // ────────────────────────────────────────────────────────────────────────────
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;

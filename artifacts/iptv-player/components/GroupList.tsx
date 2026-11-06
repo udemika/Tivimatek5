@@ -117,6 +117,7 @@ export function GroupList({
   const [showPin, setShowPin] = useState(false);
   const [contextGroup, setContextGroup] = useState<string | null>(null);
   const [groupOptionsGroup, setGroupOptionsGroup] = useState<string | null>(null);
+  const [focusedGroupKey, setFocusedGroupKey] = useState<string | null>(null);
 
   // Track which playlists are collapsed
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => {
@@ -274,15 +275,21 @@ export function GroupList({
                     const locked = isGroupLocked(group);
                     const favOnly = favoritesOnlyGroups.includes(group);
 
+                    const focusKey = `${playlist.id}:${group}`;
+                    const isFocused = focusedGroupKey === focusKey;
                     return (
                       <TouchableOpacity
                         key={group}
+                        focusable={true}
+                        onFocus={() => setFocusedGroupKey(focusKey)}
+                        onBlur={() => setFocusedGroupKey((k) => (k === focusKey ? null : k))}
                         onPress={() => handleSelect(group, playlist)}
                         onLongPress={() => handleLongPress(group)}
                         style={[
                           styles.groupItem,
                           { borderColor: "transparent" },
                           active && { backgroundColor: colors.highlight, borderColor: `${colors.primary}30` },
+                          isFocused && { borderColor: colors.primary, borderWidth: 2, backgroundColor: `${colors.primary}25` },
                         ]}
                         activeOpacity={0.7}
                       >
