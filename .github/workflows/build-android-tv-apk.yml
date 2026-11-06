@@ -1,0 +1,86 @@
+name: Build Google TV APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-android-tv-apk:
+    name: Build & Publish TiviMatek5 Google TV APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup pnpm 10
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Configure pnpm node-linker=hoisted for React Native / Gradle autolinking
+        run: |
+          echo "node-linker=hoisted" >> .npmrc
+          pnpm install --no-frozen-lockfile
+
+      - name: Expo Prebuild (Generate Android TV native project)
+        working-directory: artifacts/iptv-player
+        env:
+          EXPO_NO_GIT_STATUS: 1
+          CI: 1
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Configure Gradle memory & signing for standalone Google TV APK
+        working-directory: artifacts/iptv-player/android
+        run: |
+          echo "" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8" >> gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
+          chmod +x gradlew
+
+      - name: Assemble Release APK (Signed with universal debug keystore for direct TV sideloading)
+        working-directory: artifacts/iptv-player/android
+        run: |
+          ./gradlew assembleRelease -x lint -x test
+          cp app/build/outputs/apk/release/app-release.apk ../../TiviMatek5-GoogleTV.apk
+
+      - name: Upload Google TV APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TiviMatek5-GoogleTV-APK
+          path: artifacts/TiviMatek5-GoogleTV.apk
+          if-no-files-found: error
+
+      - name: Publish APK to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: v1.1.0-googletv
+          name: "TiviMatek5 Google TV Edition (v1.1.0)"
+          body: |
+            ### 📺 TiviMatek5 IPTV Player — Google TV / Android TV APK
+            - **Прямая поддержка Stalker Portal (MAG250), Xtream Codes и M3U/M3U8** без необходимости внешнего прокси-сервера.
+            - **Адаптация под пульт Google TV / Android TV (D-Pad):** переключение каналов вверх/вниз с OSD-баннером, управление воспроизведением, EPG-гид по кнопке Menu/Guide, видимая рамка фокуса.
+            - **Поддержка Leanback Launcher:** ярлык приложения отображается прямо на главном экране Google TV.
+            - **Исправлены ошибки:** краш `AbortSignal.timeout` на движке Hermes, лимит 2 МБ `CursorWindow` в `AsyncStorage` для больших плейлистов (5000+ каналов/фильмов), поддержка `http://` потоков (`usesCleartextTraffic`).
+          files: artifacts/TiviMatek5-GoogleTV.apk
+          prerelease: false
